@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String     @id @default(uuid())
+  email               String     @unique
+  passwordHash        String
+  name                String
+  bloodGroup          String
+  age                 Int?
+  gender              String?
+  phone               String?
+  // Use generic floats for now; PostGIS needs raw queries for complex matching
+  latitude            Float?
+  longitude           Float?
+  city                String?
+  lastDonatedAt       DateTime?
+  rewardPoints        Int        @default(0)
+  isVerified          Boolean    @default(false)
+  
+  // Preferences
+  maxTravelDistanceKm Int        @default(10)
+  notificationsEnabled Boolean   @default(true)
+  
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  donations           Donation[]
+  emergencyRequests   EmergencyRequest[]
+}
+
+model BloodBank {
+  id            String     @id @default(uuid())
+  name          String
+  email         String     @unique
+  passwordHash  String
+  licenseNumber String     @unique
+  address       String
+  latitude      Float?
+  longitude     Float?
+  phone         String
+  isVerified    Boolean    @default(false)
+  rewardPoints  Int        @default(0)
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  inventory     Inventory[]
+  donations     Donation[]
+}
+
+model Inventory {
+  id             String    @id @default(uuid())
+  bloodBankId    String
+  bloodGroup     String
+  unitsAvailable Int       @default(0)
+  status         String    @default("Good") // Critical, Low, Good
+  
+  updatedAt      DateTime  @updatedAt
+
+  bloodBank      BloodBank @relation(fields: [bloodBankId], references: [id])
+
+  @@unique([bloodBankId, bloodGroup])
+}
+
+model EmergencyRequest {
+  id             String    @id @default(uuid())
+  requesterId    String
+  patientName    String
+  patientGender  String?
+  patientAge     Int?
+  bloodGroup     String
+  unitsRequired  Int
+  hospitalAddress String @default("Unknown")
+  latitude       Float
+  longitude      Float
+  urgency        String    // Critical, High, Normal
+  status         String    @default("Active") // Active, Fulfilled, Cancelled
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Direct requests fields
+  requiredDate   DateTime?
+  assignedBloodBankId String?
+
+  requester      User      @relation(fields: [requesterId], references: [id])
+  responses      EmergencyResponse[]
+}
+
+model Donation {
+  id            String    @id @default(uuid())
+  donorId       String
+  bloodBankId   String
+  scheduledDate DateTime
+  status        String    @default("Pending") // Pending, Completed, Cancelled
+  pointsAwarded Int       @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  donor         User      @relation(fields: [donorId], references: [id])
+  bloodBank     BloodBank @relation(fields: [bloodBankId], references: [id])
+}
+
+model Otp {
+  id        String   @id @default(uuid())
+  email     String
+  code      String
+  type      String   // "REGISTER" or "LOGIN"
+  userType  String   // "donor" or "bloodbank"
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // We could add an index to speed up lookups
+  @@index([email, code])
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  authorId  String
+  authorType String  // "donor" or "bloodbank"
+  content   String
+  imageUrl  String?
+  likes     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Minimal relation setup for now, storing authorName directly to avoid polymorphic complexity
+  authorName String
+  authorInitials String
+}
+
+model Camp {
+  id          String   @id @default(uuid())
+  organizerId String
+  title       String
+  date        DateTime
+  location    String
+  description String?
+  rsvps       Int      @default(0)
+  capacity    Int      @default(50)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  organizerName String
+}
+
+model CampRSVP {
+  id        String   @id @default(uuid())
+  campId    String
+  userId    String
+  userType  String   // "donor" or "bloodbank"
+  role      String   // "donor" or "volunteer"
+  createdAt DateTime @default(now())
+
+  @@unique([campId, userId])
+}
+
+model EmergencyResponse {
+  id             String    @id @default(uuid())
+  emergencyId    String
+  responderId    String?
+  bloodBankId    String?
+  responderName  String
+  responderPhone String?
+  responderType  String    // "Donor" or "BloodBank"
+  responseType   String    // "I will donate myself" or "I will bring someone else" or "Prepared Units"
+  bloodGroup     String
+  createdAt      DateTime  @default(now())
+
+  emergency      EmergencyRequest @relation(fields: [emergencyId], references: [id], onDelete: Cascade)
+}
+
