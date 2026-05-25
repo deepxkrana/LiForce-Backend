@@ -252,6 +252,70 @@ router.post('/emergencies', async (req: Request, res: Response) => {
   }
 });
 
+// GET: Fetch emergency requests for the homepage banner (role based filtering)
+router.get('/emergencies/banner', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let userId: string | null = null;
+    let role: string | null = null;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
+        const payload = jwt.verify(token, JWT_SECRET) as { id: string; role: string };
+        userId = payload.id;
+        role = payload.role;
+      } catch (err) {
+        console.warn('Failed to verify token in banner endpoint');
+      }
+    }
+
+    const emergencies = await db.emergencyRequest.findMany({
+      where: { 
+        status: 'Active',
+        ...(userId && { requesterId: { not: userId } }) // don't show user their own request
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!userId) {
+      // If not logged in, return all active emergencies
+      return res.json(emergencies.slice(0, 10));
+    }
+
+    // Authenticated flow
+    if (role === 'donor') {
+      const user = await db.user.findUnique({ where: { id: userId } });
+      if (!user || !user.latitude || !user.longitude) return res.json(emergencies.slice(0, 10));
+      
+      const radius = 50; // 50km for donors
+      const nearby = emergencies.filter(req => {
+        if (!req.latitude || !req.longitude) return false;
+        const dist = calculateDistance(user.latitude!, user.longitude!, req.latitude, req.longitude);
+        return dist <= radius;
+      });
+      return res.json(nearby.slice(0, 10));
+    } else if (role === 'bloodbank') {
+      const bank = await db.bloodBank.findUnique({ where: { id: userId } });
+      if (!bank || !bank.latitude || !bank.longitude) return res.json(emergencies.slice(0, 10));
+
+      const radius = 200; // 200km for blood banks
+      const nearby = emergencies.filter(req => {
+        if (!req.latitude || !req.longitude) return false;
+        const dist = calculateDistance(bank.latitude!, bank.longitude!, req.latitude, req.longitude);
+        return dist <= radius;
+      });
+      return res.json(nearby.slice(0, 10));
+    }
+
+    return res.json(emergencies.slice(0, 10));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // GET: Fetch my active emergency request with its responders
 router.get('/emergencies/my-active', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
