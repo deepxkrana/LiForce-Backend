@@ -15,11 +15,10 @@ try {
 }
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-  port: Number(process.env.SMTP_PORT) || 587,
+  service: "gmail",
   auth: {
-    user: process.env.SMTP_USER || 'dummy_user',
-    pass: process.env.SMTP_PASS || 'dummy_pass'
+    user: process.env.EMAIL_USER || 'dummy_user@gmail.com',
+    pass: process.env.EMAIL_PASS || 'dummy_pass'
   }
 });
 
@@ -48,9 +47,9 @@ export const notifyService = {
       if (subject.includes('Verification Code')) {
         console.log(`🔑 [VERIFICATION CODE LOG] Sent to ${to}. Content: ${html}`);
       }
-      if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         await transporter.sendMail({
-          from: '"LiForce Alerts" <alerts@liforce.org>',
+          from: process.env.EMAIL_USER || '"LiForce Alerts" <alerts@liforce.org>',
           to,
           subject,
           html

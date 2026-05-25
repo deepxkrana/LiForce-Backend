@@ -19,7 +19,7 @@ model User {
   // Use generic floats for now; PostGIS needs raw queries for complex matching
   latitude            Float?
   longitude           Float?
-  city                String?
+  address             String?
   lastDonatedAt       DateTime?
   rewardPoints        Int        @default(0)
   isVerified          Boolean    @default(false)
@@ -46,6 +46,7 @@ model BloodBank {
   longitude     Float?
   phone         String
   isVerified    Boolean    @default(false)
+  isOpen        Boolean    @default(true)
   rewardPoints  Int        @default(0)
 
   createdAt     DateTime   @default(now())
@@ -146,10 +147,21 @@ model Camp {
   description String?
   rsvps       Int      @default(0)
   capacity    Int      @default(50)
+  maxDonorVolunteers Int @default(10)
+  maxBloodBankVolunteers Int @default(5)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   organizerName String
+
+  latitude      Float?
+  longitude     Float?
+
+  checkedInDonor         String[]
+  checkedInVolunteer     String[]
+  checkedInBloodBanks    String[]
+  medicalCheck           String[]
+  ActuallyDonated        String[]
 }
 
 model CampRSVP {
@@ -176,5 +188,44 @@ model EmergencyResponse {
   createdAt      DateTime  @default(now())
 
   emergency      EmergencyRequest @relation(fields: [emergencyId], references: [id], onDelete: Cascade)
+}
+
+model CompletedCamp {
+  id                     String   @id @default(uuid())
+  organizerId            String
+  title                  String
+  date                   DateTime
+  location               String
+  description            String?
+  rsvps                  Int      @default(0)
+  capacity               Int      @default(50)
+  maxDonorVolunteers     Int      @default(10)
+  maxBloodBankVolunteers Int      @default(5)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  
+  organizerName          String
+
+  latitude               Float?
+  longitude              Float?
+
+  isCompleted            Boolean  @default(true)
+  checkedInDonor         String[]
+  checkedInVolunteer     String[]
+  checkedInBloodBanks    String[]
+  medicalCheck           String[]
+  ActuallyDonated        String[]
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  userType  String   // "donor" or "bloodbank"
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, userType])
 }
 

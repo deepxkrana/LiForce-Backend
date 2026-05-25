@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRouter from './routes/auth';
 import donorsRouter from './routes/donors';
@@ -19,10 +20,12 @@ const PORT = process.env.PORT || 4000;
 
 // Middleware configuration
 app.use(cors({
-  origin: '*', // Allow all origins for seamless development integration
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173', // Must match frontend origin precisely for cookies
+  credentials: true, // Required for HttpOnly cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
+app.use(cookieParser());
 app.use(express.json());
 
 // Register API routes

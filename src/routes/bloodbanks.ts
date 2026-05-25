@@ -119,7 +119,7 @@ router.put('/bloodbanks/me/inventory', requireAuth, requireBloodBank, async (req
 router.put('/bloodbanks/me', requireAuth, requireBloodBank, async (req: AuthRequest, res: Response) => {
   try {
     const bloodBankId = req.user!.id;
-    const { name, phone, address, latitude, longitude, email } = req.body;
+    const { name, phone, address, latitude, longitude, email, isOpen } = req.body;
 
     const updated = await db.bloodBank.update({
       where: { id: bloodBankId },
@@ -128,6 +128,7 @@ router.put('/bloodbanks/me', requireAuth, requireBloodBank, async (req: AuthRequ
         ...(phone && { phone }),
         ...(address && { address }),
         ...(email && { email }),
+        ...(isOpen !== undefined && { isOpen }),
         ...(latitude && { latitude: Number(latitude) }),
         ...(longitude && { longitude: Number(longitude) }),
       },
@@ -136,6 +137,7 @@ router.put('/bloodbanks/me', requireAuth, requireBloodBank, async (req: AuthRequ
         name: true,
         phone: true,
         address: true,
+        isOpen: true,
         latitude: true,
         longitude: true,
       }

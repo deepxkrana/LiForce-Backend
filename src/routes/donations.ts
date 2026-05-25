@@ -84,6 +84,16 @@ router.post('/donations/book', requireAuth, async (req: AuthRequest, res: Respon
       console.error('⚠️ Failed to dispatch WebSocket alert for donation:', wsError);
     }
 
+    // Persist Notification in DB
+    await db.notification.create({
+      data: {
+        userId: bloodBankId,
+        userType: 'bloodbank',
+        title: 'New Donation Appointment',
+        message: `${donor.name} (Blood Group: ${donor.bloodGroup}) has booked a donation appointment on ${new Date(scheduledDate).toLocaleDateString()}.`
+      }
+    });
+
     return res.status(201).json({
       message: 'Donation appointment booked successfully',
       donation

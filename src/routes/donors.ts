@@ -16,7 +16,7 @@ router.get('/donors/me', requireAuth, async (req: AuthRequest, res: Response) =>
         email: true,
         bloodGroup: true,
         phone: true,
-        city: true,
+        address: true,
         lastDonatedAt: true,
         rewardPoints: true,
         isVerified: true,
@@ -60,7 +60,18 @@ router.get('/donors/me', requireAuth, async (req: AuthRequest, res: Response) =>
       orderBy: { date: 'asc' }
     });
 
-    return res.json({ ...user, upcomingCamps });
+    const activeDonatedCamps = await db.camp.findMany({
+      where: { ActuallyDonated: { has: userId } },
+      select: { id: true, title: true, location: true, date: true, organizerName: true }
+    });
+    const completedDonatedCamps = await db.completedCamp.findMany({
+      where: { ActuallyDonated: { has: userId } },
+      select: { id: true, title: true, location: true, date: true, organizerName: true }
+    });
+    
+    const donatedCamps = [...activeDonatedCamps, ...completedDonatedCamps];
+
+    return res.json({ ...user, upcomingCamps, donatedCamps });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Internal Server Error' });
@@ -82,7 +93,7 @@ router.get('/donors', async (req, res) => {
         bloodGroup: true,
         latitude: true,
         longitude: true,
-        city: true,
+        address: true,
         lastDonatedAt: true,
         maxTravelDistanceKm: true,
       }
@@ -107,13 +118,13 @@ router.get('/donors', async (req, res) => {
 router.put('/donors/me', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { phone, city, maxTravelDistanceKm, notificationsEnabled, latitude, longitude } = req.body;
+    const { phone, address, maxTravelDistanceKm, notificationsEnabled, latitude, longitude } = req.body;
 
     const updated = await db.user.update({
       where: { id: userId },
       data: {
         ...(phone && { phone }),
-        ...(city && { city }),
+        ...(address && { address }),
         ...(maxTravelDistanceKm && { maxTravelDistanceKm: Number(maxTravelDistanceKm) }),
         ...(notificationsEnabled !== undefined && { notificationsEnabled }),
         ...(latitude && { latitude: Number(latitude) }),
@@ -123,7 +134,7 @@ router.put('/donors/me', requireAuth, async (req: AuthRequest, res: Response) =>
         id: true,
         name: true,
         phone: true,
-        city: true,
+        address: true,
         maxTravelDistanceKm: true,
       }
     });
@@ -204,7 +215,7 @@ router.get('/donors/leaderboard', async (req, res) => {
         name: true,
         bloodGroup: true,
         rewardPoints: true,
-        city: true,
+        address: true,
         donations: {
           where: { status: 'Completed' }
         }
@@ -216,7 +227,7 @@ router.get('/donors/leaderboard', async (req, res) => {
       name: donor.name,
       bloodGroup: donor.bloodGroup,
       rewardPoints: donor.rewardPoints,
-      city: donor.city,
+      address: donor.address,
       _count: {
         donations: donor.donations.length
       }
@@ -296,13 +307,45 @@ router.post('/community/posts', requireAuth, async (req: AuthRequest, res: Respo
 });
 
 
-router.get('/community/camps', async (req, res) => {
+router.get('/community/camps', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const camps = await db.camp.findMany({
-      orderBy: { date: 'asc' },
-      take: 10
+    const userId = req.user!.id;
+    const userRole = req.user!.role;
+
+    let userLat: number | null = null;
+    let userLng: number | null = null;
+
+    if (userRole === 'donor') {
+      const user = await db.user.findUnique({ where: { id: userId } });
+      userLat = user?.latitude || null;
+      userLng = user?.longitude || null;
+    } else {
+      const bank = await db.bloodBank.findUnique({ where: { id: userId } });
+      userLat = bank?.latitude || null;
+      userLng = bank?.longitude || null;
+    }
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const allCamps = await db.camp.findMany({
+      where: { date: { gte: startOfToday } },
+      orderBy: { date: 'asc' }
     });
-    return res.json(camps);
+
+    if (!userLat || !userLng) {
+      return res.json([]);
+    }
+
+    const radius = userRole === 'donor' ? 50 : 200;
+
+    const nearbyCamps = allCamps.filter(camp => {
+      if (!camp.latitude || !camp.longitude) return false;
+      const distance = calculateDistance(userLat!, userLng!, camp.latitude, camp.longitude);
+      return distance <= radius;
+    });
+
+    return res.json(nearbyCamps.slice(0, 10));
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Internal Server Error' });
@@ -319,7 +362,7 @@ router.get('/donors/:id', async (req, res) => {
         id: true,
         name: true,
         bloodGroup: true,
-        city: true,
+        address: true,
         rewardPoints: true,
         lastDonatedAt: true,
         createdAt: true,
@@ -342,7 +385,52 @@ router.get('/donors/:id', async (req, res) => {
 
     if (!user) return res.status(404).json({ error: 'Donor not found' });
 
-    return res.json(user);
+    const activeDonatedCamps = await db.camp.findMany({
+      where: { ActuallyDonated: { has: id } },
+      select: { id: true, title: true, location: true, date: true, organizerName: true }
+    });
+    const completedDonatedCamps = await db.completedCamp.findMany({
+      where: { ActuallyDonated: { has: id } },
+      select: { id: true, title: true, location: true, date: true, organizerName: true }
+    });
+    
+    const donatedCamps = [...activeDonatedCamps, ...completedDonatedCamps];
+
+    return res.json({ ...user, donatedCamps });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// GET /notifications - Fetch user notifications
+router.get('/notifications', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const notifications = await db.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+    return res.json(notifications);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// PUT /notifications/:id/read - Mark notification as read
+router.put('/notifications/:id/read', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    
+    // Optional: check if notification belongs to user
+    const updated = await db.notification.updateMany({
+      where: { id, userId },
+      data: { isRead: true }
+    });
+    return res.json({ success: true, count: updated.count });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Internal Server Error' });
