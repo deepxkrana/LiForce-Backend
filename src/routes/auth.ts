@@ -92,7 +92,8 @@ router.post('/register/initiate', otpLimiter, async (req, res) => {
       }
     });
 
-    await sendOTPEmail(email, otp);
+    // Do not await the email so the frontend doesn't hang if SMTP times out
+    sendOTPEmail(email, otp).catch(console.error);
     return res.status(200).json({ 
       message: 'OTP sent to email',
       devOtp: process.env.NODE_ENV !== 'production' ? otp : undefined 
@@ -240,7 +241,8 @@ router.post('/login/initiate', otpLimiter, async (req, res) => {
       }
     });
 
-    await sendOTPEmail(email, otp);
+    // Do not await the email so the frontend doesn't hang if SMTP times out
+    sendOTPEmail(email, otp).catch(console.error);
     return res.status(200).json({ 
       message: 'OTP sent to email',
       devOtp: process.env.NODE_ENV !== 'production' ? otp : undefined 
@@ -349,7 +351,8 @@ router.post('/forgot-password/initiate', otpLimiter, async (req, res) => {
       }
     });
 
-    await sendOTPEmail(email, otp);
+    // Do not await the email so the frontend doesn't hang if SMTP times out
+    sendOTPEmail(email, otp).catch(console.error);
     return res.status(200).json({ message: 'OTP sent to email' });
   } catch (error) {
     console.error('Forgot password initiate error:', error);
@@ -435,7 +438,8 @@ router.post('/settings/initiate', requireAuth, otpLimiter, async (req: AuthReque
       }
     });
 
-    await sendOTPEmail(email, otp);
+    // Do not await the email so the frontend doesn't hang if SMTP times out
+    sendOTPEmail(email, otp).catch(console.error);
     return res.status(200).json({ message: 'OTP sent to current email' });
   } catch (error) {
     console.error('Settings initiate error:', error);
