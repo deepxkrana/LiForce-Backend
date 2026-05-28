@@ -23,7 +23,14 @@ app.set('trust proxy', 1);
 
 // Middleware configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173', // Must match frontend origin precisely for cookies
+  origin: (origin, callback) => {
+    const allowed = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/$/, '') : 'http://localhost:5173';
+    if (!origin || origin === allowed || origin.replace(/\/$/, '') === allowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true, // Required for HttpOnly cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
