@@ -18,6 +18,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Trust the Render reverse proxy to fix rate limit IP issues
+app.set('trust proxy', 1);
+
 // Middleware configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173', // Must match frontend origin precisely for cookies
