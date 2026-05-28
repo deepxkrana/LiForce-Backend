@@ -23,7 +23,7 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 // POST: Match emergency request to nearby eligible donors
 router.post('/match/emergency', async (req: Request, res: Response) => {
   try {
-    const { bloodGroup, latitude, longitude, radiusKm = 10 } = req.body;
+    const { bloodGroup, latitude, longitude, radiusKm = 10, donorRadiusKm = 50, bankRadiusKm = 200 } = req.body;
 
     if (!latitude || !longitude || !bloodGroup) {
       return res.status(400).json({ error: 'Missing required parameters' });
@@ -33,12 +33,17 @@ router.post('/match/emergency', async (req: Request, res: Response) => {
     const fiftySixDaysAgo = new Date();
     fiftySixDaysAgo.setDate(fiftySixDaysAgo.getDate() - 56);
 
-    // Try to get requesterId from token to exclude them from matches
     let requesterId = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
+    let token = req.cookies?.liforce_token;
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+      }
+    }
+    
+    if (token) {
       try {
-        const token = authHeader.split(' ')[1];
         const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
         const payload = jwt.verify(token, JWT_SECRET) as { id: string };
         requesterId = payload.id;
@@ -71,7 +76,7 @@ router.post('/match/emergency', async (req: Request, res: Response) => {
     const matchedDonors = candidates.filter(donor => {
       const distance = calculateDistance(latitude, longitude, donor.latitude!, donor.longitude!);
       // Donor must be within the search radius AND the emergency must be within the donor's max travel distance
-      return distance <= radiusKm && distance <= donor.maxTravelDistanceKm;
+      return distance <= donorRadiusKm && distance <= donor.maxTravelDistanceKm;
     }).map(donor => ({
       ...donor,
       type: 'Donor',
@@ -82,6 +87,7 @@ router.post('/match/emergency', async (req: Request, res: Response) => {
     const bankCandidates = await db.bloodBank.findMany({
       where: {
         isVerified: true,
+        ...(requesterId && { id: { not: requesterId } }),
         latitude: { not: null },
         longitude: { not: null },
         inventory: {
@@ -103,7 +109,7 @@ router.post('/match/emergency', async (req: Request, res: Response) => {
     // Step 4: Filter by Haversine distance for blood banks
     const matchedBanks = bankCandidates.filter(bank => {
       const distance = calculateDistance(latitude, longitude, bank.latitude!, bank.longitude!);
-      return distance <= radiusKm;
+      return distance <= bankRadiusKm;
     }).map(bank => ({
       ...bank,
       type: 'BloodBank',
