@@ -69,13 +69,28 @@ Before you begin, ensure you have:
 | `npm run prisma:push` | Push schema changes to the database |
 | `npm run prisma:seed` | Seed the database with mock donors, banks, and camps |
 
-## 🌍 Deployment (Render)
+## 🌍 Deployment (Koyeb + Supabase)
 
-1. Create a **Web Service** on Render and link this repository.
-2. Under Environment, select `Node`.
-3. Set the Build Command:
+Render's free tier has strict limits and blocks ports. For a completely free and robust production environment, deploy the Database to Supabase and the API to Koyeb.
+
+### 1. Database (Supabase)
+1. Go to [Supabase.com](https://supabase.com) and create a free project.
+2. Go to Project Settings -> Database.
+3. Copy the **Transaction** connection string. This is your `DATABASE_URL`.
+4. Copy the **Session** connection string. This is your `DIRECT_URL`.
+
+### 2. Backend API (Koyeb)
+1. Go to [Koyeb.com](https://www.koyeb.com) and create a free account.
+2. Click **Deploy App** and select GitHub. Connect this `LiForce2-backend` repository.
+3. In the builder settings, set the **Build Command**:
    ```bash
    npm install && npx prisma generate && npx prisma db push && npm run build
    ```
-4. Set the Start Command: `npm start`
-5. Set your Environment Variables: `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, and importantly, `FRONTEND_URL` (pointing to your Vercel URL to allow secure CORS).
+4. Set the **Run Command**: `npm start`
+5. Under Environment Variables, add:
+   - `DATABASE_URL` (Supabase Transaction string)
+   - `DIRECT_URL` (Supabase Session string)
+   - `JWT_SECRET` (e.g., your secret password)
+   - `GEMINI_API_KEY` (Your Google AI key)
+   - `FRONTEND_URL` (Your live Vercel URL, e.g. `https://liforcebloodbank.vercel.app`)
+6. Choose the **Free Eco** instance and click Deploy!
